@@ -2,7 +2,11 @@
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { CloseIcon } from "@/components/icons";
-import { wouldCreateCycle } from "@/lib/constellation/status";
+import {
+  computeAncestors,
+  impliedPrerequisites,
+  wouldCreateCycle,
+} from "@/lib/constellation/status";
 import type { Domain, Star, Tier } from "@/lib/constellation/types";
 import { parseNumber } from "@/lib/format";
 import { starSchema } from "@/lib/validation";
@@ -75,6 +79,12 @@ export function StarForm({ request, domains, stars, onSubmit, onCancel }: StarFo
       }))
       .filter((group) => group.stars.length > 0);
   }, [domains, stars, editing, domainId]);
+
+  // Ticked prerequisites already required through another ticked one: they stay
+  // valid, but their line is not drawn, so the user is told why.
+  const ancestors = useMemo(() => computeAncestors(stars), [stars]);
+  const implied = impliedPrerequisites(ancestors, prerequisiteIds);
+  const titleOf = (id: string) => stars.find((star) => star.id === id)?.title ?? "";
 
   const togglePrerequisite = (id: string) =>
     setPrerequisiteIds((ids) => (ids.includes(id) ? ids.filter((other) => other !== id) : [...ids, id]));
@@ -292,6 +302,14 @@ export function StarForm({ request, domains, stars, onSubmit, onCancel }: StarFo
                         className="h-4 w-4 accent-violet-300"
                       />
                       <span className="truncate">{star.title}</span>
+                      {implied.has(star.id) && (
+                        <span
+                          className="ml-auto shrink-0 truncate text-[11px] text-white/40"
+                          title={`Déjà requis par « ${titleOf(implied.get(star.id) as string)} » : aucune ligne n'est tracée pour lui.`}
+                        >
+                          inclus via « {titleOf(implied.get(star.id) as string)} »
+                        </span>
+                      )}
                     </label>
                   ))}
                 </div>
