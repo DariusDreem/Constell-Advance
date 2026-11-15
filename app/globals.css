@@ -1,0 +1,221 @@
+@import "tailwindcss";
+
+@theme inline {
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-space), var(--font-geist-sans), ui-sans-serif, sans-serif;
+  --color-void: #04020b;
+  --color-starlight: #f3f0ff;
+  --color-nebula: #8b6cff;
+}
+
+:root {
+  /* About one seventh of the screen, within sensible bounds. */
+  --sidebar-w: clamp(200px, 14.3vw, 280px);
+  --sidebar-w-collapsed: 64px;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  background: var(--color-void);
+  color: var(--color-starlight);
+  font-family: var(--font-sans);
+  overflow: hidden;
+}
+
+/* Deep space: near-black with violet, magenta and blue nebula tints. */
+.cosmos {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background:
+    radial-gradient(ellipse 70% 55% at 72% 18%, rgb(109 40 217 / 0.26), transparent 62%),
+    radial-gradient(ellipse 55% 45% at 12% 82%, rgb(192 38 211 / 0.13), transparent 62%),
+    radial-gradient(ellipse 50% 40% at 88% 88%, rgb(37 99 235 / 0.13), transparent 62%),
+    radial-gradient(ellipse 90% 70% at 50% 50%, rgb(30 16 64 / 0.55), transparent 75%),
+    linear-gradient(180deg, #04020b 0%, #0a0518 50%, #05030e 100%);
+}
+
+/* Quarter-transparent black panels: white text stays readable over the sky. */
+.glass {
+  background: rgb(4 2 12 / 0.48);
+  border: 1px solid rgb(255 255 255 / 0.09);
+  backdrop-filter: blur(18px) saturate(1.2);
+  -webkit-backdrop-filter: blur(18px) saturate(1.2);
+}
+
+.field {
+  width: 100%;
+  border-radius: 0.6rem;
+  border: 1px solid rgb(255 255 255 / 0.12);
+  background: rgb(255 255 255 / 0.05);
+  padding: 0.5rem 0.7rem;
+  font-size: 0.875rem;
+  color: #fff;
+  outline: none;
+  transition:
+    border-color 0.2s,
+    background 0.2s;
+}
+.field::placeholder {
+  color: rgb(255 255 255 / 0.32);
+}
+.field:focus {
+  border-color: rgb(196 165 255 / 0.7);
+  background: rgb(255 255 255 / 0.08);
+}
+select.field option {
+  background: #120a26;
+  color: #fff;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  border-radius: 999px;
+  padding: 0.45rem 0.95rem;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  white-space: nowrap;
+  transition:
+    background 0.2s,
+    border-color 0.2s,
+    box-shadow 0.2s,
+    opacity 0.2s;
+}
+.btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+.btn-primary {
+  background: #fff;
+  color: #0b0618;
+  box-shadow: 0 0 18px rgb(255 255 255 / 0.28);
+}
+.btn-primary:not(:disabled):hover {
+  box-shadow: 0 0 26px rgb(255 255 255 / 0.5);
+}
+.btn-ghost {
+  border: 1px solid rgb(255 255 255 / 0.16);
+  color: rgb(255 255 255 / 0.85);
+}
+.btn-ghost:not(:disabled):hover {
+  background: rgb(255 255 255 / 0.08);
+  border-color: rgb(255 255 255 / 0.3);
+}
+.btn-danger {
+  border: 1px solid rgb(251 113 133 / 0.4);
+  color: #fda4af;
+}
+.btn-danger:not(:disabled):hover {
+  background: rgb(251 113 133 / 0.14);
+}
+
+/* Thin, discreet scrollbars inside panels. */
+.scroll-thin {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(255 255 255 / 0.18) transparent;
+}
+
+/* Sidebar: fixed share of the screen on desktop, overlay drawer on small screens. */
+.sidebar {
+  width: var(--sidebar-w);
+  transition: width 0.5s cubic-bezier(0.6, 0, 0.2, 1);
+}
+.sidebar[data-collapsed="true"] {
+  width: var(--sidebar-w-collapsed);
+}
+@media (max-width: 767px) {
+  .sidebar-slot {
+    width: var(--sidebar-w-collapsed);
+  }
+  .sidebar {
+    position: absolute;
+    inset: 0 auto 0 0;
+  }
+  .sidebar:not([data-collapsed="true"]) {
+    width: min(78vw, 300px);
+  }
+}
+
+/* ---- Constellation (SVG) ---- */
+
+.fade {
+  /* Slow, soft fade so the focus follows the cursor without flashing. */
+  transition: opacity 0.7s ease-in-out;
+}
+
+.halo-achieved {
+  animation: twinkle 5s ease-in-out infinite;
+}
+@keyframes twinkle {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.62;
+  }
+}
+
+.halo-available {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: breathe 2.8s ease-in-out infinite;
+}
+@keyframes breathe {
+  0%,
+  100% {
+    opacity: 0.16;
+    transform: scale(0.82);
+  }
+  50% {
+    opacity: 0.46;
+    transform: scale(1.12);
+  }
+}
+
+.thread {
+  stroke-dasharray: 3 9;
+  animation: thread-flow 2.4s linear infinite;
+}
+@keyframes thread-flow {
+  to {
+    stroke-dashoffset: -24;
+  }
+}
+
+.spin-slow {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: spin 16s linear infinite;
+}
+
+.disk-flow {
+  stroke-dasharray: 5 3;
+  animation: disk-flow 1.6s linear infinite;
+}
+@keyframes disk-flow {
+  to {
+    stroke-dashoffset: -16;
+  }
+}
+
+.star-node {
+  cursor: pointer;
+  outline: none;
+}
+.star-node .star-shape {
+  transform-box: fill-box;
+  transform-origin: center;
+  transition: transform 0.25s ease;
+}
+.star-node:hover .star-shape,
+.star-node:focus-visible .star-shape {
+  transform: scale(1.25);
+}
