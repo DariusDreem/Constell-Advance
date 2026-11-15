@@ -52,6 +52,52 @@ export function wouldCreateCycle(
 }
 
 /**
+ * For each star, every star it depends on, directly or through a chain of
+ * prerequisites. Loops in the data are tolerated (a star never lists itself).
+ */
+export function computeAncestors(
+  stars: Pick<Star, "id" | "prerequisiteIds">[],
+): Map<string, Set<string>> {
+  const byId = new Map(stars.map((star) => [star.id, star]));
+  const memo = new Map<string, Set<string>>();
+  const visiting = new Set<string>();
+  const visit = (id: string): Set<string> => {
+    const known = memo.get(id);
+    if (known) return known;
+    const result = new Set<string>();
+    if (visiting.has(id)) return result;
+    visiting.add(id);
+    for (const prerequisiteId of byId.get(id)?.prerequisiteIds ?? []) {
+      if (!byId.has(prerequisiteId) || prerequisiteId === id) continue;
+      result.add(prerequisiteId);
+      for (const ancestor of visit(prerequisiteId)) if (ancestor !== id) result.add(ancestor);
+    }
+    visiting.delete(id);
+    memo.set(id, result);
+    return result;
+  };
+  for (const star of stars) visit(star.id);
+  return memo;
+}
+
+/**
+ * Among `prerequisiteIds`, the ones already required through another of them:
+ * maps each implied prerequisite to the one that implies it. If C needs A and B,
+ * and B already needs A, then A is implied by B.
+ */
+export function impliedPrerequisites(
+  ancestors: Map<string, Set<string>>,
+  prerequisiteIds: string[],
+): Map<string, string> {
+  const implied = new Map<string, string>();
+  for (const id of prerequisiteIds) {
+    const via = prerequisiteIds.find((other) => other !== id && ancestors.get(other)?.has(id));
+    if (via) implied.set(id, via);
+  }
+  return implied;
+}
+
+/**
  * Applies a new numeric value. The star is validated automatically when the value
  * reaches the target, but only if it is not locked.
  */

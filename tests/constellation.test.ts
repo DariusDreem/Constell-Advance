@@ -36,6 +36,37 @@ function star(id: string, domainId: string, extra: Partial<Star> = {}): Star {
   };
 }
 
+/**
+ * Number of pairs of links (inside the constellation, threads excluded) whose
+ * lines cross each other. Links sharing a star do not count. Curved links are
+ * followed through their waypoints.
+ */
+function countCrossings(layout: ReturnType<typeof computeLayout>): number {
+  type P = { x: number; y: number };
+  const lines = layout.links
+    .filter((l) => l.kind !== "cross")
+    .map((l) => ({ ids: [l.fromId ?? "centre", l.toId], points: l.points }));
+  const side = (a: P, b: P, c: P) => Math.sign((b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x));
+  const cross = (a: P, b: P, c: P, d: P) =>
+    side(a, b, c) * side(a, b, d) < 0 && side(c, d, a) * side(c, d, b) < 0;
+  let crossings = 0;
+  for (let i = 0; i < lines.length; i++) {
+    for (let j = i + 1; j < lines.length; j++) {
+      const s = lines[i];
+      const t = lines[j];
+      if (s.ids.some((id) => t.ids.includes(id))) continue;
+      let hit = false;
+      for (let a = 0; a < s.points.length - 1 && !hit; a++) {
+        for (let b = 0; b < t.points.length - 1 && !hit; b++) {
+          hit = cross(s.points[a], s.points[a + 1], t.points[b], t.points[b + 1]);
+        }
+      }
+      if (hit) crossings += 1;
+    }
+  }
+  return crossings;
+}
+
 const node = (layout: ReturnType<typeof computeLayout>, id: string) => {
   const found = layout.nodes.find((n) => n.starId === id);
   if (!found) throw new Error(`no node ${id}`);
@@ -134,8 +165,7 @@ describe("computeLayout", () => {
     const thread = layout.links.find((l) => l.fromId === "c1" && l.toId === "far");
     expect(thread?.kind).toBe("cross");
     // The thread goes around the outside: its farthest point is beyond the outer radius.
-    const points = (thread?.path ?? "").slice(1).split("L").map((p) => p.split(",").map(Number));
-    const reach = Math.max(...points.map(([x, y]) => Math.hypot(x, y)));
+    const reach = Math.max(...(thread?.points ?? []).map(({ x, y }) => Math.hypot(x, y)));
     expect(reach).toBeGreaterThan(layout.outerRadius);
   });
 
@@ -150,6 +180,89 @@ describe("computeLayout", () => {
     for (const n of layout.nodes) {
       expect(Number.isFinite(n.x)).toBe(true);
       expect(Number.isFinite(n.y)).toBe(true);
+    }
+  });
+
+  it("draws only direct links: a prerequisite already implied by another one is not drawn", () => {
+    // Same shape as a real sky: x needs r1, m, c and s, but c and s already need m,
+    // which already needs r1.
+    const stars = [
+      star("r1", "a"),
+      star("m", "a", { prerequisiteIds: ["r1"] }),
+      star("c", "a", { prerequisiteIds: ["m"] }),
+      star("s", "a", { prerequisiteIds: ["m"] }),
+      star("x", "a", { prerequisiteIds: ["r1", "m", "c", "s"] }),
+    ];
+    const layout = computeLayout(domains, stars);
+    const into = layout.links
+      .filter((l) => l.toId === "x")
+      .map((l) => l.fromId)
+      .sort();
+    expect(into).toEqual(["c", "s"]);
+    // The star still sits after its deepest prerequisite.
+    expect(node(layout, "x").depth).toBe(4);
+  });
+
+  it("orders each ring so that links do not cross when they can avoid it", () => {
+    // x needs a1 and a3, y needs a2: the roots must be ordered a1, a3, a2 (or the
+    // mirror) for the four links to stay apart.
+    const stars = [
+      star("a1", "a"),
+      star("a2", "a"),
+      star("a3", "a"),
+      star("x", "a", { prerequisiteIds: ["a1", "a3"] }),
+      star("y", "a", { prerequisiteIds: ["a2"] }),
+    ];
+    const layout = computeLayout(domains, stars);
+    expect(countCrossings(layout)).toBe(0);
+  });
+
+  it("routes a line that skips rings around the stars instead of across other links", () => {
+    // Same shape as a real sky: s4 is a first-ring star whose line goes straight
+    // to s7 on the fourth ring. The previous layout drew a crossing here.
+    const stars = [
+      star("s0", "a"),
+      star("s1", "a", { prerequisiteIds: ["s0"] }),
+      star("s2", "a", { prerequisiteIds: ["s0"] }),
+      star("s3", "a", { prerequisiteIds: ["s1", "s2"] }),
+      star("s4", "a"),
+      star("s5", "a", { prerequisiteIds: ["s0"] }),
+      star("s6", "a", { prerequisiteIds: ["s0"] }),
+      star("s7", "a", { prerequisiteIds: ["s2", "s3", "s4", "s5", "s6"] }),
+    ];
+    const layout = computeLayout(domains, stars);
+    expect(countCrossings(layout)).toBe(0);
+    // The long line bends through a waypoint on each ring it passes.
+    const long = layout.links.find((l) => l.fromId === "s4" && l.toId === "s7");
+    expect(long?.points).toHaveLength(4);
+  });
+
+  it("keeps stars clear of a bridge star sitting on their border", () => {
+    const stars = [
+      star("bridge", "a", { secondaryDomainId: "b" }),
+      ...Array.from({ length: 4 }, (_, i) => star(`a${i}`, "a")),
+      ...Array.from({ length: 4 }, (_, i) => star(`b${i}`, "b")),
+    ];
+    const layout = computeLayout(domains, stars);
+    const bridge = node(layout, "bridge");
+    for (const other of layout.nodes) {
+      if (other.starId === "bridge") continue;
+      expect(Math.hypot(other.x - bridge.x, other.y - bridge.y)).toBeGreaterThanOrEqual(LAYOUT.minGap - 1);
+    }
+  });
+
+  it("keeps the demo sky free of crossing links inside each domain", () => {
+    const layout = computeLayout(DEMO_DOMAINS, DEMO_STARS);
+    expect(countCrossings(layout)).toBe(0);
+  });
+
+  it("keeps stars of the same ring apart", () => {
+    const stars = Array.from({ length: 9 }, (_, i) => star(`r${i}`, "a"));
+    const layout = computeLayout(domains, stars);
+    const angles = layout.nodes.map((n) => n.angle).sort((p, q) => p - q);
+    const radius = layout.ringRadii[0];
+    for (let i = 1; i < angles.length; i++) {
+      expect((angles[i] - angles[i - 1]) * radius).toBeGreaterThanOrEqual(LAYOUT.minGap - 0.5);
     }
   });
 
